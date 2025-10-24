@@ -21,8 +21,7 @@ Node.js
 Chave da API Gemini configurada em .env.local
 
 Instalação
-git clone <URL_DO_REPOSITORIO>
-cd nome-do-projeto
+
 npm install
 
 Configuração da API
