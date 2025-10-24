@@ -21,7 +21,7 @@ Node.js
 Chave da API Gemini configurada em .env.local
 
 Instalação
-
+gh repo clone augustomiguelfarias7-cmd/ChatGusto
 npm install
 
 Configuração da API
