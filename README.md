@@ -1,20 +1,62 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+ChatGusto 🚀
 
-# Run and deploy your AI Studio app
+ChatGusto é um assistente inteligente que roda dentro do Google AI Studio. Ele pode funcionar online, offline, e possui um botão que exporta arquivos completos para o GitHub.
 
-This contains everything you need to run your app locally.
+Funcionalidades principais
 
-View your app in AI Studio: https://ai.studio/apps/drive/1wD1CqZyN8wRMdaz27-inBtYQ8fT5SLe_
+Assistente de código integrado ao GitHub 🐙
 
-## Run Locally
+Transporte completo de pastas e arquivos do projeto
 
-**Prerequisites:**  Node.js
+Funciona localmente ou na nuvem do AI Studio 🌐
+
+Suporte a Node.js e .env para chaves de API
+
+Pré-requisitos
+
+Node.js
+ instalado
+
+Chave da API Gemini configurada em .env.local
+
+Instalação
+# Clone o repositório
+gh repo clone augustomiguelfarias7-cmd/ChatGusto.git
+cd ChatGusto
+
+# Instale as dependências
+npm install
+
+Configuração da API
+
+No arquivo .env.local:
+
+GEMINI_API_KEY=<SUA_CHAVE_GEMINI>
+
+Executando localmente
+npm run dev
 
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+Abra o navegador em http://localhost:3000
+ (ou a porta mostrada no terminal) para usar o ChatGusto.
+
+Contribuição
+
+Se você quiser contribuir:
+
+Crie uma branch para sua feature:
+
+git checkout -b feature/nome-da-feature
+
+
+Faça commits das alterações:
+
+git commit -m "Descrição da mudança"
+
+
+Envie para o repositório:
+
+git push origin feature/nome-da-feature
+
+
+Abra um Pull Request 🚀
