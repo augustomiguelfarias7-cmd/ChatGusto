@@ -1,5 +1,5 @@
 {
-  "name": "ChatGusto",
+  "name": "Copy of ChatGusto",
   "description": "An interactive chatbot named ChatGusto, created by KidVenture. It leverages Gemini models to generate text, images, and videos, and provides text-to-speech functionality for its responses.",
   "requestFramePermissions": []
 }

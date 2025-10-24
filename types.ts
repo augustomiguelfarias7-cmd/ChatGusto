@@ -8,6 +8,7 @@ export enum ChatMode {
   IMAGE = 'image',
   SEARCH = 'search',
   DEVELOPER = 'developer',
+  GITHUB = 'github',
 }
 
 export interface Message {

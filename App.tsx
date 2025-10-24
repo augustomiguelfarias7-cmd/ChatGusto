@@ -1,8 +1,9 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { GoogleGenAI, Chat, FunctionDeclaration, Type, FunctionCall, Part, GenerateContentParameters, GenerateContentResponse, Tool } from '@google/genai';
 import { Message, MessageRole, ChatMode } from './types';
 import ChatMessage from './components/ChatMessage';
-import { KidVentureLogo, SendIcon, LoadingSpinner, BrainIcon, ChatBubbleIcon, PhotoIcon, SearchIcon, CodeIcon } from './components/Icons';
+import { KidVentureLogo, SendIcon, LoadingSpinner, BrainIcon, ChatBubbleIcon, PhotoIcon, SearchIcon, CodeIcon, GitHubIcon } from './components/Icons';
 import { generateImage, generateSpeech } from './services/geminiService';
 
 const BASE_SYSTEM_INSTRUCTION = "Você é o ChatGusto, um assistente virtual criado pela KidVenture. A KidVenture não é só para crianças, é para todos. Sempre adicione emojis em suas respostas.";
@@ -10,7 +11,7 @@ const SYSTEM_INSTRUCTION_NORMAL = `${BASE_SYSTEM_INSTRUCTION} Você pode convers
 const SYSTEM_INSTRUCTION_IMAGE = `${BASE_SYSTEM_INSTRUCTION} Sua tarefa é criar imagens fantásticas! Use a ferramenta disponível para gerar uma imagem com base no que o usuário pedir.`;
 const SYSTEM_INSTRUCTION_SEARCH = `${BASE_SYSTEM_INSTRUCTION} Sua tarefa é encontrar as informações mais atualizadas na web. Use a ferramenta de busca para responder às perguntas do usuário e sempre cite suas fontes. 🕵️‍♂️`;
 const SYSTEM_INSTRUCTION_DEVELOPER = `${BASE_SYSTEM_INSTRUCTION} Você é um assistente especialista em programação. Ajude com código, explique conceitos complexos e resolva problemas de desenvolvimento. 💻`;
-
+const SYSTEM_INSTRUCTION_GITHUB = `${BASE_SYSTEM_INSTRUCTION} Você é um especialista em analisar repositórios do GitHub. Sua tarefa é extrair informações chave. Use a ferramenta 'list_repo_files' para ver a estrutura do repositório. Em seguida, procure por arquivos como README.md, package.json, e LICENSE. Use 'get_file_content' para ler estes arquivos e extrair as seguintes informações: o nome do projeto, a descrição, o criador, a licença, e as dependências ou alguns trechos de código como exemplo. Apresente um resumo com estes pontos. 🐙`;
 
 const CREATE_IMAGE_TOOL: FunctionDeclaration = {
   name: 'create_image',
@@ -25,6 +26,44 @@ const CREATE_IMAGE_TOOL: FunctionDeclaration = {
     },
     required: ['prompt'],
   },
+};
+
+const LIST_REPO_FILES_TOOL: FunctionDeclaration = {
+    name: 'list_repo_files',
+    description: 'Lista os arquivos e diretórios em um caminho específico de um repositório do GitHub. Use isso para explorar a estrutura do repositório.',
+    parameters: {
+        type: Type.OBJECT,
+        properties: {
+            repoUrl: {
+                type: Type.STRING,
+                description: 'A URL completa do repositório do GitHub (ex: "https://github.com/owner/repo").',
+            },
+            path: {
+                type: Type.STRING,
+                description: 'O caminho para o diretório a ser listado. O padrão é o diretório raiz se não for fornecido.',
+            },
+        },
+        required: ['repoUrl'],
+    },
+};
+
+const GET_FILE_CONTENT_TOOL: FunctionDeclaration = {
+    name: 'get_file_content',
+    description: 'Lê e retorna o conteúdo de um arquivo específico de um repositório do GitHub. Use isso depois de encontrar um arquivo com "list_repo_files".',
+    parameters: {
+        type: Type.OBJECT,
+        properties: {
+            repoUrl: {
+                type: Type.STRING,
+                description: 'A URL completa do repositório do GitHub (ex: "https://github.com/owner/repo").',
+            },
+            filePath: {
+                type: Type.STRING,
+                description: 'O caminho completo para o arquivo dentro do repositório (ex: "README.md" ou "src/index.js").',
+            },
+        },
+        required: ['repoUrl', 'filePath'],
+    },
 };
 
 export default function App() {
@@ -79,6 +118,15 @@ export default function App() {
                 content: "Hora de pesquisar! 🕵️ O que você gostaria de saber? Posso buscar as informações mais recentes para você.",
             };
             break;
+        case ChatMode.GITHUB:
+            systemInstruction = SYSTEM_INSTRUCTION_GITHUB;
+            tools.push({ functionDeclarations: [LIST_REPO_FILES_TOOL, GET_FILE_CONTENT_TOOL] });
+            initialMessage = {
+                id: 'init-github',
+                role: MessageRole.MODEL,
+                content: "Olá! Forneça um link de um repositório do GitHub e eu farei o meu melhor para analisá-lo para você. 🐙",
+            };
+            break;
         case ChatMode.DEVELOPER:
             systemInstruction = SYSTEM_INSTRUCTION_DEVELOPER;
             initialMessage = {
@@ -109,12 +157,20 @@ export default function App() {
     setMessages([initialMessage]);
     
   }, [chatMode]); 
+
+  const parseRepoUrl = (url: string): { owner: string; repo: string } | null => {
+      const broaderMatch = url.match(/github\.com\/([^/]+)\/([^/]+)/);
+      if (broaderMatch && broaderMatch[1] && broaderMatch[2]) {
+          return { owner: broaderMatch[1], repo: broaderMatch[2] };
+      }
+      return null;
+  };
   
-  const handleFunctionCall = async (call: FunctionCall) => {
+  const handleFunctionCall = async (call: FunctionCall): Promise<Record<string, any>> => {
     const { name, args } = call;
-    const prompt = args.prompt as string;
 
     if (name === 'create_image') {
+        const prompt = args.prompt as string;
         const loadingId = `image-${Date.now()}`;
         setMessages(prev => [...prev, { id: loadingId, role: MessageRole.MODEL, content: `🎨 Gerando imagem para: "${prompt}"`, isLoading: true }]);
         try {
@@ -126,7 +182,65 @@ export default function App() {
             return { success: false, error: (error as Error).message };
         }
     }
-    return { success: false, error: 'Unknown function' };
+
+    if (name === 'list_repo_files' || name === 'get_file_content') {
+        const repoUrl = args.repoUrl as string;
+        const parsed = parseRepoUrl(repoUrl);
+
+        if (!parsed) {
+            return { success: false, error: 'URL do repositório GitHub inválida.' };
+        }
+        const { owner, repo } = parsed;
+
+        try {
+            if (name === 'list_repo_files') {
+                const path = (args.path as string) || '';
+                const response = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/${path.startsWith('/') ? path.substring(1) : path}`);
+                if (!response.ok) {
+                     const errorData = await response.json();
+                     throw new Error(`Falha na API do GitHub: ${errorData.message || response.statusText}`);
+                }
+                const data = await response.json();
+                if (!Array.isArray(data)) {
+                    throw new Error("A resposta da API do GitHub não foi uma lista de arquivos. O caminho pode ser um arquivo único em vez de um diretório.");
+                }
+                const content = {
+                    files: data.filter((item: any) => item.type === 'file').map((item: any) => item.path),
+                    directories: data.filter((item: any) => item.type === 'dir').map((item: any) => item.path),
+                };
+                return { success: true, content };
+            }
+
+            if (name === 'get_file_content') {
+                const filePath = args.filePath as string;
+                const repoInfoResponse = await fetch(`https://api.github.com/repos/${owner}/${repo}`);
+                 if (!repoInfoResponse.ok) {
+                     const errorData = await repoInfoResponse.json();
+                     throw new Error(`Falha ao buscar informações do repositório: ${errorData.message || repoInfoResponse.statusText}`);
+                }
+                const repoInfo = await repoInfoResponse.json();
+                const defaultBranch = repoInfo.default_branch;
+                
+                if (!defaultBranch) {
+                    throw new Error("Não foi possível determinar a branch padrão do repositório. Pode estar vazio.");
+                }
+
+                const fileResponse = await fetch(`https://raw.githubusercontent.com/${owner}/${repo}/${defaultBranch}/${filePath.startsWith('/') ? filePath.substring(1) : filePath}`);
+                if (!fileResponse.ok) {
+                    throw new Error(`Falha ao buscar o conteúdo do arquivo: ${fileResponse.statusText}`);
+                }
+                const content = await fileResponse.text();
+                
+                const MAX_LENGTH = 8000;
+                const truncatedContent = content.length > MAX_LENGTH ? content.substring(0, MAX_LENGTH) + "\n\n... (conteúdo truncado)" : content;
+                return { success: true, content: truncatedContent };
+            }
+        } catch (error) {
+             return { success: false, error: (error as Error).message };
+        }
+    }
+
+    return { success: false, error: 'Função desconhecida' };
   };
 
   const processResponse = (response: GenerateContentResponse) => {
@@ -291,6 +405,7 @@ export default function App() {
                 <ModeButton mode={ChatMode.NORMAL} label="Normal" icon={<ChatBubbleIcon />} />
                 <ModeButton mode={ChatMode.IMAGE} label="Imagem" icon={<PhotoIcon />} />
                 <ModeButton mode={ChatMode.SEARCH} label="Pesquisa" icon={<SearchIcon />} />
+                <ModeButton mode={ChatMode.GITHUB} label="GitHub" icon={<GitHubIcon />} />
                 <ModeButton mode={ChatMode.DEVELOPER} label="Dev" icon={<CodeIcon />} />
             </div>
         </div>
